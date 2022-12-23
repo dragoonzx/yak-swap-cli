@@ -1,6 +1,6 @@
-Yak Swap CLI (Rust version)
+## Yak Swap CLI (Rust version)
 
-Features:
+### Features
 
 - Account Management:
 
@@ -25,8 +25,13 @@ Features:
   - Wrap/Unwrap native token
   - Add custom tokens
 
-Dev:
+### Dev
+
+```
 cargo run dev
 cargo build --release
+```
 
-pickledb is used for local storage
+### Notes
+
+- pickledb is used for local storage
