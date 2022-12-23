@@ -1,0 +1,32 @@
+[x] Account Management
+  [x] Add account
+  [x] Remove account
+  [x] Set current account
+[] Network Management
+  [x] Init networks to db from default list with YAK Router address
+  [] Add network (NEXT ITERATION)
+  [] Remove network (NEXT ITERATION)
+  [x] Update network rpc (select network -> update rpc)
+  [x] set current network
+  [x] update network YAK Router address
+[x] Query
+  [x] Query adapters
+  [x] Query price of a single adapter (using some test case from yak-aggregator)
+  [x] Query for best path of a router
+  [x] Native Token Handle
+[x] Swap
+  [x] Check for balance before swap
+  [x] Check for approve before swap, suggest to approve more
+  [x] Wrap Native Token
+  [x] Unwrap Native Token
+  [x] Query & Swap (select tokens, amount, password on CURRENT_WALLET, check approve or use permit)
+  [x] swap from avax (native)
+  [x] swap to avax (native)
+[] Tokens
+  [x] Add custom tokens
+  [x] Support for multi chain
+  [] Remove token (NEXT ITERATION)
+  [] Chain automatically from cur chain (NEXT ITERATION)
+[] UX
+  [] Return to terminal
+  [] not panic, but handle errors
