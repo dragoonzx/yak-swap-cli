@@ -1,4 +1,7 @@
-use std::sync::Arc;
+use std::{
+    ops::{Mul, Sub},
+    sync::Arc,
+};
 
 use ethers::{
     prelude::{k256::ecdsa::SigningKey, SignerMiddleware},
@@ -10,6 +13,7 @@ use ethers::{
 use crate::{
     abis::{Trade, YakRouter, IWETH},
     network::Network,
+    settings::Settings,
     token::Token,
 };
 
@@ -24,7 +28,7 @@ pub struct Swap {}
 impl Swap {
     #[tokio::main]
     pub async fn swap_no_split(
-        trade: Trade,
+        mut trade: Trade,
         to: H160,
         from_to_native: Option<FromToNative>,
         signer: &Wallet<SigningKey>,
@@ -50,6 +54,8 @@ impl Swap {
                 .unwrap(),
             provider,
         );
+
+        trade.handle_slippage_setting();
 
         // if trade path starts from avax swap_no_split_from_avax
         // else if trade path to avax swap_no_split_to_avax
@@ -170,5 +176,20 @@ impl Swap {
         }
 
         None
+    }
+}
+
+impl Trade {
+    pub fn handle_slippage_setting(&mut self) {
+        // @dev e.g. 5 = 0.5%
+        let slippage = Settings::get_slippage();
+
+        let amount_out_with_slippage = U256::from(self.amount_out).sub(
+            self.amount_out
+                .checked_div(U256::from(1000))
+                .unwrap()
+                .mul(U256::from(slippage)),
+        );
+        self.amount_out = amount_out_with_slippage;
     }
 }

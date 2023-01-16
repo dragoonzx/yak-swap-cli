@@ -91,21 +91,21 @@ impl SwapScreen {
             prompt_query.amount_in,
             prompt_query.token_in.address.parse::<H160>().unwrap(),
             prompt_query.token_out.address.parse::<H160>().unwrap(),
+            prompt_query.max_steps,
         );
 
         sp.stop_with_newline();
 
-        let formatted_offer = find_path_result.ok().expect("Cant find offer");
+        let formatted_offer = find_path_result.ok().expect("Error when getting best path");
 
-        println!("Found best offer:");
-        println!(
-            "You receive: {} {}",
-            format_units(
-                formatted_offer.amounts.last().unwrap(),
-                prompt_query.token_out.decimals
-            )
-            .unwrap(),
-            prompt_query.token_out.symbol
+        if formatted_offer.adapters.is_empty() {
+            println!("Path not found 😔");
+            return;
+        }
+
+        query::QueryScreen::format_offer_result(
+            formatted_offer.to_owned(),
+            prompt_query.token_out.to_owned(),
         );
 
         let confirm = Confirm::new()
@@ -116,8 +116,7 @@ impl SwapScreen {
 
         if !confirm {
             println!("Ok, next time");
-            // return;
-            panic!("no continue");
+            return;
         }
 
         let db_instance = DB.lock().unwrap();
@@ -133,8 +132,13 @@ impl SwapScreen {
                 .unwrap();
 
             let wallet =
-                crate::wallet::AccountWallet::decrypt_wallet(current_wallet.name, password)
-                    .expect("Wrong password or account not set");
+                crate::wallet::AccountWallet::decrypt_wallet(current_wallet.name, password);
+
+            if !wallet.is_ok() {
+                return;
+            }
+
+            let wallet = wallet.expect("Something wrong with wallet");
 
             let current_network = Arc::new(Network::get_current_network());
 

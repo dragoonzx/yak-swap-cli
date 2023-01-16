@@ -44,11 +44,31 @@ pub struct Token {
 
 impl std::fmt::Display for Token {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} {} ({})", self.name, self.symbol, self.address)
+        write!(
+            f,
+            "{} {} ({})",
+            self.name,
+            self.symbol,
+            self.address
+                .parse::<H160>()
+                .unwrap_or(H160::zero())
+                .to_string()
+        )
     }
 }
 
 impl Token {
+    pub fn unknown() -> Self {
+        Self {
+            address: H160::zero().to_string(),
+            chainId: Some(0),
+            decimals: 0,
+            logoURI: String::default(),
+            name: "Unknown".to_owned(),
+            symbol: String::default(),
+        }
+    }
+
     fn supported_networks_ids() -> HashMap<&'static str, &'static str> {
         HashMap::from([
             ("Avalanche", "avalanche"),
@@ -78,8 +98,11 @@ impl Token {
             .unwrap()
     }
 
+    // @todo memoize
     #[tokio::main]
-    pub async fn get_tokens(cur_network: Network) -> Result<Vec<Token>, reqwest::Error> {
+    pub async fn get_tokens() -> Result<Vec<Token>, reqwest::Error> {
+        let cur_network = Network::get_current_network();
+
         let supported_networks_ids = Self::supported_networks_ids();
 
         let cur_network_id = supported_networks_ids.get(&*cur_network.short_name);

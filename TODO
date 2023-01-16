@@ -2,10 +2,8 @@
   [x] Add account
   [x] Remove account
   [x] Set current account
-[] Network Management
+[x] Network Management
   [x] Init networks to db from default list with YAK Router address
-  [] Add network (NEXT ITERATION)
-  [] Remove network (NEXT ITERATION)
   [x] Update network rpc (select network -> update rpc)
   [x] set current network
   [x] update network YAK Router address
@@ -26,7 +24,24 @@
   [x] Add custom tokens
   [x] Support for multi chain
   [] Remove token (NEXT ITERATION)
-  [] Chain automatically from cur chain (NEXT ITERATION)
 [] UX
-  [] Return to terminal
+  [x] Return to terminal
   [] not panic, but handle errors
+
+[] Requested by @avocadozebra 14.01
+  [x] Path display
+     Might be worth considering if some users want to see adapters or token symbols path goes through. I kinda like the simple design, but just thinking this could also be helpful in some cases. Maybe like a setting user can set. 
+  [x] It would be helpful if users can select/see their token balance for the amount in (eg. imagine you have balance of 1.023404 and u want to trade all)
+  [x] Display estimated gas-cost for swapping 
+  [x] By the time swap lands on the chain the quote could already expire so it is useful if user could select with how much slippage they want to trade. Or to make it safer you could suggest some slippage already to which they just agree.
+  [x] With each extra step path is searched for the view-gas increases exponentially, some chains/nodes allow for higher some for lower view-gas so user should be able to configure with how many steps they want to search the path with  
+  [] Better error handling if tx fails (eth_estimateGas fails - tx doesnt actually land)
+  [x] Better error handling if wallet password is incorrect
+  [] I noticed in some cases the query didnt return back the quote
+  [] I wasn’t able to add new network, update RPC or YakRouter + after playing with this the network wasn’t recognized anymore even if I selected back the default (I had to delete cli.db for it to work again)
+  [] Just “good to have” but far far from neccesary: Suppose you get a quote between two assets, but becaouse there is only one market supported with very low liquidity u get a very bad price. It is hard to recognise if that price is a “bad” price or this is the actual rate. There was one case where a guy lost a bit of money on YakSwap beacouse of that. A way to resolve this would be to also show 1inch/coingecko price for comparison :)
+
+[] Settings tab
+  [x] Path Hops
+  [x] Slippage
+  [] Compare with external quote (cowswap/1inch?)

@@ -16,22 +16,21 @@ use ethers::{
 use futures::future;
 use tokio::task::JoinError;
 
-mod adapters;
+pub mod adapters;
 
 pub struct Query {}
 
 impl Query {
     #[tokio::main]
     pub async fn get_adapters() -> Vec<Adapter> {
-        // get provider from network rpc
-        // init yak_router contract
-        // yak_router.adaptersCount() -> get adapter address from yak + get adapter name from adapter
         let current_network = Network::get_current_network();
         let provider = Arc::new(
             Provider::<Http>::try_from(current_network.rpc_url)
                 .expect("could not instantiate HTTP Provider"),
         );
 
+        // @todo memo get_adapters to refresh only on yak_router_address change
+        // we need it to match address <> name for query
         if let Some(yak_router_address) = current_network.yak_router {
             let router_contract = Arc::new(YakRouter::new(
                 yak_router_address.parse::<H160>().unwrap(),
@@ -131,11 +130,11 @@ impl Query {
         amount: U256,
         token_in: H160,
         token_out: H160,
+        max_steps: i32,
     ) -> Result<
         FormattedOfferWithGas,
         ethers::contract::ContractError<ethers::providers::Provider<Http>>,
     > {
-        let max_steps = 3;
         let gas_price = 225;
 
         let current_network = Network::get_current_network();

@@ -24,6 +24,7 @@ use wallet::AccountWallet;
 use account::AccountScreen;
 use network::NetworkScreen;
 use query::QueryScreen;
+use settings::SettingsScreen;
 use storage::WalletStorage;
 use swap::SwapScreen;
 use token::TokenScreen;
@@ -31,6 +32,7 @@ use token::TokenScreen;
 mod account;
 mod network;
 mod query;
+mod settings;
 #[path = "../wallet/storage.rs"]
 mod storage;
 mod swap;
@@ -47,6 +49,7 @@ enum StartScreens {
     Account,
     Network,
     Token,
+    Settings,
 }
 
 impl Terminal {
@@ -58,9 +61,9 @@ impl Terminal {
     pub fn settings_bar() {
         let db_instance = DB.lock().unwrap();
 
-        Terminal::clear_terminal();
+        Self::clear_terminal();
 
-        Terminal::greet();
+        Self::greet();
 
         let current_wallet = db_instance.get::<WalletStorage>(WalletStorage::DB_CURRENT_WALLET);
 
@@ -90,17 +93,30 @@ impl Terminal {
         println!();
     }
 
+    pub fn render_on_launch() -> std::io::Result<()> {
+        Self::settings_bar();
+        Self::render_topics();
+
+        Ok(())
+    }
+
     pub fn render() -> std::io::Result<()> {
-        Terminal::pause();
+        Self::action_required();
 
-        Terminal::settings_bar();
+        Self::settings_bar();
+        Self::render_topics();
 
+        Ok(())
+    }
+
+    fn render_topics() -> std::io::Result<()> {
         let start_screen_topics = [
             "1. Query",
             "2. Swap",
             "3. Account",
             "4. Network",
             "5. Tokens",
+            "6. Settings",
         ];
         let selection = Select::with_theme(&ColorfulTheme::default())
             .items(&start_screen_topics)
@@ -124,6 +140,9 @@ impl Terminal {
                 Some(StartScreens::Token) => {
                     TokenScreen::render();
                 }
+                Some(StartScreens::Settings) => {
+                    SettingsScreen::render();
+                }
                 None => panic!("Error while selecting main screen topic"),
             },
             None => println!("You did not select anything"),
@@ -141,7 +160,7 @@ impl Terminal {
         execute!(stdout(), crossterm::cursor::MoveTo(0, 0)).unwrap();
     }
 
-    fn pause() {
+    fn action_required() {
         let mut stdin = io::stdin();
         let mut stdout = io::stdout();
 

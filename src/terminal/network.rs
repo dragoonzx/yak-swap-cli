@@ -23,11 +23,11 @@ enum NetworkTopics {
 impl NetworkScreen {
     pub fn render() -> std::io::Result<()> {
         let topics = [
-            "1. Add network",
-            "2. Remove network",
-            "3. Set current network",
-            "4. Update network RPC URL",
-            "5. Update network YAK Router Address",
+            // "1. Add network",
+            // "2. Remove network",
+            "1. Set current network",
+            "2. Update network RPC URL",
+            "3. Update network YAK Router Address",
             "<- Go back",
         ];
 

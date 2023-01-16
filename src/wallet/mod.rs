@@ -5,7 +5,7 @@ use std::sync::Mutex;
 
 use console::Term;
 use dialoguer::theme::ColorfulTheme;
-use dialoguer::Select;
+use dialoguer::{Confirm, Select};
 use dialoguer::{Input, Password};
 use eth_keystore::{decrypt_key, encrypt_key};
 use ethers::prelude::k256::ecdsa::SigningKey;
@@ -22,7 +22,9 @@ use lazy_static::lazy_static;
 
 use storage::WalletStorage;
 
-mod storage;
+use crate::terminal::Terminal;
+
+pub mod storage;
 
 pub struct AccountWallet {
     wallet: Wallet<SigningKey>,
@@ -67,7 +69,7 @@ impl AccountWallet {
         Self { wallet }
     }
 
-    pub fn decrypt_wallet(name: String, password: String) -> Result<Self, Error> {
+    pub fn decrypt_wallet(name: String, password: String) -> Result<Self, ()> {
         let pk_path = format!("{}/{}", AccountWallet::PATH_KEYS, name);
         let pk_decrypted = decrypt_key(pk_path, password);
 
@@ -80,8 +82,23 @@ impl AccountWallet {
                 Ok(Self { wallet })
             }
             Err(err) => {
-                println!("Error, maybe Wallet with that name not exist");
-                panic!("{}", err);
+                println!("Error, wrong password or account does not exist");
+
+                if Confirm::new()
+                    .with_prompt("Do you want to re-enter your password?")
+                    .default(true)
+                    .interact()
+                    .unwrap()
+                {
+                    let password: String = Password::new()
+                        .with_prompt("Current Wallet password")
+                        .interact()
+                        .unwrap();
+
+                    Self::decrypt_wallet(name, password)
+                } else {
+                    Err(())
+                }
             }
         }
     }
