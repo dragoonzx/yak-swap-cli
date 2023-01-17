@@ -3,6 +3,8 @@ use std::sync::Arc;
 use crate::abis::Trade;
 use crate::db::DB;
 use crate::network::Network;
+use crate::query::{ExternalQuote, ExternalQuoteError, Query};
+use crate::settings::Settings;
 use crate::swap::{FromToNative, Swap};
 use crate::terminal::storage::WalletStorage;
 use crate::Terminal;
@@ -18,6 +20,8 @@ use ethers::{
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 use spinners::{Spinner, Spinners};
+
+use super::query::QueryScreen;
 
 #[path = "./query.rs"]
 mod query;
@@ -98,15 +102,70 @@ impl SwapScreen {
 
         let formatted_offer = find_path_result.ok().expect("Error when getting best path");
 
+        // @dev start external price fetching
+        let is_external_allowed = Settings::is_external_allowed();
+
+        let mut external_quote_result = ExternalQuote {
+            toTokenAmount: String::default(),
+            estimatedGas: 0,
+        };
+
+        if is_external_allowed {
+            let mut sp = Spinner::new(Spinners::Aesthetic, "Getting quote from 1inch...".into());
+
+            // get best path from 1inch
+            let external_quote = Query::get_1inch_price(
+                prompt_query.amount_in,
+                prompt_query.token_in.address.parse::<H160>().unwrap(),
+                prompt_query.token_out.address.parse::<H160>().unwrap(),
+            );
+
+            match external_quote {
+                Ok(quote) => {
+                    external_quote_result = quote;
+                    sp.stop_with_message("Finished getting quote from 1inch ✅".to_owned());
+                }
+                Err(err) => match err {
+                    ExternalQuoteError::NetworkNotSupported => {
+                        println!("Network not supported to get 1inch price");
+                        sp.stop_with_message("Error getting quote from 1inch ⛔️".to_owned());
+                    }
+                    ExternalQuoteError::ReqwestError(err) => {
+                        println!("Error while requesting 1inch price {}", err);
+                        sp.stop_with_message("Error getting quote from 1inch ⛔️".to_owned());
+                    }
+                },
+            }
+        }
+        // @dev end external price fetching
+
         if formatted_offer.adapters.is_empty() {
             println!("Path not found 😔");
+
+            if is_external_allowed && !external_quote_result.toTokenAmount.is_empty() {
+                println!("But 1inch found offer");
+                QueryScreen::format_external_offer(
+                    external_quote_result,
+                    None,
+                    prompt_query.token_out.to_owned(),
+                );
+            }
+
             return;
         }
 
-        query::QueryScreen::format_offer_result(
+        QueryScreen::format_offer_result(
             formatted_offer.to_owned(),
             prompt_query.token_out.to_owned(),
         );
+
+        if is_external_allowed {
+            QueryScreen::format_external_offer(
+                external_quote_result,
+                Some(formatted_offer.to_owned()),
+                prompt_query.token_out.to_owned(),
+            );
+        }
 
         let confirm = Confirm::new()
             .with_prompt("Do you want to continue?")

@@ -1,6 +1,6 @@
 use crate::{settings::Settings, token::Token, Terminal};
 use console::Term;
-use dialoguer::{theme::ColorfulTheme, Input, Password, Select};
+use dialoguer::{theme::ColorfulTheme, Confirm, Input, Password, Select};
 use ethers::prelude::k256::elliptic_curve::Error;
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
@@ -44,7 +44,8 @@ impl SettingsScreen {
                     Terminal::render();
                 }
                 Some(SettingsTopics::External) => {
-                    // @todo set flag if external comparison is ok and get it after
+                    let is_allowed = Self::confirm_is_external_allowed();
+                    Settings::set_is_external_allowed(is_allowed);
 
                     Terminal::render();
                 }
@@ -102,5 +103,17 @@ impl SettingsScreen {
         let slippage = slippage_items[slippage_selection.unwrap()];
 
         slippage
+    }
+
+    fn confirm_is_external_allowed() -> bool {
+        let is_external_allowed = Settings::is_external_allowed();
+
+        let confirm_is_allowed = Confirm::with_theme(&ColorfulTheme::default())
+            .with_prompt("Do you want to compare price with 1inch?")
+            .default(is_external_allowed)
+            .interact()
+            .unwrap();
+
+        confirm_is_allowed
     }
 }

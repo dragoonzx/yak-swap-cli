@@ -2,7 +2,7 @@ use crate::abis::FormattedOfferWithGas;
 use crate::db::DB;
 use crate::network::Network;
 use crate::query::adapters::Adapter;
-use crate::query::Query;
+use crate::query::{ExternalQuote, ExternalQuoteError, Query};
 use crate::settings::Settings;
 use crate::swap::{FromToNative, Swap};
 use crate::Terminal;
@@ -17,6 +17,7 @@ use ethers::{
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 use spinners::{Spinner, Spinners};
+use std::ops::{Mul, Sub};
 use std::sync::Arc;
 
 use crate::wallet::storage::WalletStorage;
@@ -68,14 +69,81 @@ impl QueryScreen {
 
                     sp.stop_with_message("Finished getting best path ✅".to_owned());
 
+                    // @dev start external price fetching
+                    let is_external_allowed = Settings::is_external_allowed();
+
+                    let mut external_quote_result = ExternalQuote {
+                        toTokenAmount: String::default(),
+                        estimatedGas: 0,
+                    };
+
+                    if is_external_allowed {
+                        let mut sp =
+                            Spinner::new(Spinners::Aesthetic, "Getting quote from 1inch...".into());
+
+                        // get best path from 1inch
+                        let external_quote = Query::get_1inch_price(
+                            prompt_query.amount_in,
+                            prompt_query.token_in.address.parse::<H160>().unwrap(),
+                            prompt_query.token_out.address.parse::<H160>().unwrap(),
+                        );
+
+                        match external_quote {
+                            Ok(quote) => {
+                                external_quote_result = quote;
+                                sp.stop_with_message(
+                                    "Finished getting quote from 1inch ✅".to_owned(),
+                                );
+                            }
+                            Err(err) => match err {
+                                ExternalQuoteError::NetworkNotSupported => {
+                                    println!("Network not supported to get 1inch price");
+                                    sp.stop_with_message(
+                                        "Error getting quote from 1inch ⛔️".to_owned(),
+                                    );
+                                }
+                                ExternalQuoteError::ReqwestError(err) => {
+                                    println!("Error while requesting 1inch price {}", err);
+                                    sp.stop_with_message(
+                                        "Error getting quote from 1inch ⛔️".to_owned(),
+                                    );
+                                }
+                            },
+                        }
+                    }
+                    // @dev end external price fetching
+
                     match find_path_result {
                         Ok(formatted_offer) => {
                             if formatted_offer.adapters.is_empty() {
-                                println!("Path not found 😔");
-                                ()
-                            }
+                                println!("Yak path not found 😔");
 
-                            Self::format_offer_result(formatted_offer, prompt_query.token_out);
+                                if is_external_allowed
+                                    && !external_quote_result.toTokenAmount.is_empty()
+                                {
+                                    println!("But 1inch found offer");
+                                    Self::format_external_offer(
+                                        external_quote_result,
+                                        None,
+                                        prompt_query.token_out.to_owned(),
+                                    );
+                                }
+
+                                ()
+                            } else {
+                                Self::format_offer_result(
+                                    formatted_offer.to_owned(),
+                                    prompt_query.token_out.to_owned(),
+                                );
+
+                                if is_external_allowed {
+                                    Self::format_external_offer(
+                                        external_quote_result,
+                                        Some(formatted_offer.to_owned()),
+                                        prompt_query.token_out.to_owned(),
+                                    );
+                                }
+                            }
                         }
                         Err(err) => {
                             println!("{}", err);
@@ -285,7 +353,7 @@ impl QueryScreen {
             .collect::<Vec<String>>();
 
         println!();
-        println!("Offer Path:");
+        println!("Yak Offer Path:");
         println!("Adapters: {}", adapters.join(" => "));
         println!("Tokens: {}", path.join(" => "));
         println!(
@@ -294,6 +362,56 @@ impl QueryScreen {
             token_out.symbol
         );
         println!("Estimated gas: {}", formatted_offer.gas_estimate);
+        println!();
+    }
+
+    pub fn format_external_offer(
+        offer: ExternalQuote,
+        yak_offer: Option<FormattedOfferWithGas>,
+        token_out: Token,
+    ) {
+        if let Some(yak_offer) = yak_offer {
+            let yak_offer_amount =
+                format_units(yak_offer.amounts.last().unwrap(), token_out.decimals)
+                    .unwrap()
+                    .parse::<f64>()
+                    .unwrap();
+            let offer_amount = format_units(
+                U256::from_dec_str(&offer.toTokenAmount).unwrap(),
+                token_out.decimals,
+            )
+            .unwrap()
+            .parse::<f64>()
+            .unwrap();
+
+            if yak_offer_amount.lt(&offer_amount) {
+                let compare_percent =
+                    ((offer_amount - yak_offer_amount) / yak_offer_amount) * 100.0;
+                println!(
+                    "1inch is better by {:.2}% comparing to Yak",
+                    compare_percent
+                );
+            } else {
+                let compare_percent =
+                    ((yak_offer_amount - offer_amount) / yak_offer_amount) * 100.0;
+                println!("1inch is worse by {:.2}% comparing to Yak", compare_percent);
+            }
+
+            println!("1inch estimated gas: {}", offer.estimatedGas);
+
+            return;
+        }
+
+        println!();
+        println!(
+            "1inch offer price: {}",
+            format_units(
+                U256::from_dec_str(&offer.toTokenAmount).unwrap(),
+                token_out.decimals
+            )
+            .unwrap()
+        );
+        println!("1inch estimated gas: {}", offer.estimatedGas);
         println!();
     }
 }
