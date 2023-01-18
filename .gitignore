@@ -2,3 +2,4 @@
 /keys
 /.vscode
 cli.db
+.DS_Store

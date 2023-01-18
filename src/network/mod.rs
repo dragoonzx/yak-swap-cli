@@ -114,7 +114,7 @@ impl Network {
         }
     }
 
-    pub fn get_supported_networks() -> [Self; 6] {
+    pub fn get_supported_networks() -> [Self; 8] {
         [
             // Avalanche
             Network {
@@ -187,6 +187,31 @@ impl Network {
                 rpc_url: "https://kovan.optimism.io".to_owned(),
                 currency_name: "OP Ethereum".to_owned(),
                 currency_symbol: "opETH".to_owned(),
+                currency_decimals: 18,
+                is_testnet: true,
+                yak_router: None,
+            },
+            // Arbitrum
+            Network {
+                chain_id: 42161,
+                name: "Arbitrum Mainnet".to_owned(),
+                short_name: "Arbitrum".to_owned(),
+                explorer_url: "https://arbiscan.io".to_owned(),
+                rpc_url: "https://arb1.arbitrum.io/rpc".to_owned(),
+                currency_name: "ETH".to_owned(),
+                currency_symbol: "ETH".to_owned(),
+                currency_decimals: 18,
+                is_testnet: false,
+                yak_router: None,
+            },
+            Network {
+                chain_id: 421613,
+                name: "Arbitrum Goerli Testnet".to_owned(),
+                short_name: "Optimism Testnet".to_owned(),
+                explorer_url: "https://goerli.arbiscan.io/".to_owned(),
+                rpc_url: "https://goerli-rollup.arbitrum.io/rpc".to_owned(),
+                currency_name: "ETH".to_owned(),
+                currency_symbol: "ETH".to_owned(),
                 currency_decimals: 18,
                 is_testnet: true,
                 yak_router: None,
