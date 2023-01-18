@@ -75,6 +75,7 @@ impl Token {
             ("Dogechain", "dogechain"),
             ("Optimism", "optimistic-ethereum"),
             ("Arbitrum", "arbitrum-one"),
+            ("Aurora", "aurora"),
         ])
     }
 

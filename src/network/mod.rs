@@ -114,7 +114,7 @@ impl Network {
         }
     }
 
-    pub fn get_supported_networks() -> [Self; 8] {
+    pub fn get_supported_networks() -> [Self; 10] {
         [
             // Avalanche
             Network {
@@ -210,6 +210,31 @@ impl Network {
                 short_name: "Optimism Testnet".to_owned(),
                 explorer_url: "https://goerli.arbiscan.io/".to_owned(),
                 rpc_url: "https://goerli-rollup.arbitrum.io/rpc".to_owned(),
+                currency_name: "ETH".to_owned(),
+                currency_symbol: "ETH".to_owned(),
+                currency_decimals: 18,
+                is_testnet: true,
+                yak_router: None,
+            },
+            // Aurora
+            Network {
+                chain_id: 1313161554,
+                name: "Aurora Mainnet".to_owned(),
+                short_name: "Aurora".to_owned(),
+                explorer_url: "https://aurorascan.dev".to_owned(),
+                rpc_url: "https://mainnet.aurora.dev".to_owned(),
+                currency_name: "ETH".to_owned(),
+                currency_symbol: "ETH".to_owned(),
+                currency_decimals: 18,
+                is_testnet: false,
+                yak_router: None,
+            },
+            Network {
+                chain_id: 1313161555,
+                name: "Aurora Testnet".to_owned(),
+                short_name: "Aurora Testnet".to_owned(),
+                explorer_url: "https://testnet.aurorascan.dev".to_owned(),
+                rpc_url: "https://testnet.aurora.dev".to_owned(),
                 currency_name: "ETH".to_owned(),
                 currency_symbol: "ETH".to_owned(),
                 currency_decimals: 18,
