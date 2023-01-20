@@ -152,7 +152,7 @@ impl Network {
                 currency_symbol: "DOGE".to_owned(),
                 currency_decimals: 18,
                 is_testnet: false,
-                yak_router: None,
+                yak_router: Some("0x985d014DA6e6C781ec3FF77E8Fd48c30174F3d96".to_owned()),
             },
             Network {
                 chain_id: 568,

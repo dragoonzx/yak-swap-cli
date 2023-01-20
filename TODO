@@ -45,5 +45,5 @@
   [x] Slippage
   [x] Compare with external quote (cowswap/1inch?)
 
-[] Remove custom token
-[] Permit support
+[x] Remove custom token
+[x] Permit support

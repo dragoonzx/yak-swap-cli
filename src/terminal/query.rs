@@ -7,8 +7,11 @@ use crate::settings::Settings;
 use crate::swap::{FromToNative, Swap};
 use crate::Terminal;
 use crate::{token::Token, wallet::AccountWallet};
+use console::style;
 use console::Term;
 use dialoguer::{theme::ColorfulTheme, FuzzySelect, Input, Select};
+use ethers::providers::ProviderError;
+use ethers::utils::format_ether;
 use ethers::{
     prelude::k256::elliptic_curve::Error,
     types::{H160, U256},
@@ -121,19 +124,25 @@ impl QueryScreen {
                                 if is_external_allowed
                                     && !external_quote_result.toTokenAmount.is_empty()
                                 {
+                                    let gas_price = Query::get_gas_price();
+
                                     println!("But 1inch found offer");
                                     Self::format_external_offer(
                                         external_quote_result,
                                         None,
                                         prompt_query.token_out.to_owned(),
+                                        &gas_price,
                                     );
                                 }
 
                                 ()
                             } else {
+                                let gas_price = Query::get_gas_price();
+
                                 Self::format_offer_result(
                                     formatted_offer.to_owned(),
                                     prompt_query.token_out.to_owned(),
+                                    &gas_price,
                                 );
 
                                 if is_external_allowed {
@@ -141,6 +150,7 @@ impl QueryScreen {
                                         external_quote_result,
                                         Some(formatted_offer.to_owned()),
                                         prompt_query.token_out.to_owned(),
+                                        &gas_price,
                                     );
                                 }
                             }
@@ -228,7 +238,7 @@ impl QueryScreen {
 
         drop(db_instance);
 
-        let tokens = crate::token::Token::get_tokens().unwrap();
+        let tokens = crate::token::Token::get_tokens();
 
         let token_in_selection = FuzzySelect::with_theme(&ColorfulTheme::default())
             .items(&tokens)
@@ -319,8 +329,13 @@ impl QueryScreen {
         Ok(token_in_balance)
     }
 
-    pub fn format_offer_result(formatted_offer: FormattedOfferWithGas, token_out: Token) {
-        let tokens = crate::token::Token::get_tokens().unwrap();
+    pub fn format_offer_result(
+        formatted_offer: FormattedOfferWithGas,
+        token_out: Token,
+        gas_price: &Result<U256, ProviderError>,
+    ) {
+        let current_network = Network::get_current_network();
+        let tokens = crate::token::Token::get_tokens();
 
         let path = formatted_offer
             .path
@@ -330,7 +345,6 @@ impl QueryScreen {
                     .iter()
                     .find(|token| token.address.parse::<H160>().unwrap() == addr);
                 token.unwrap_or(&Token::unknown()).to_string()
-                // token.unwrap().to_string()
             })
             .collect::<Vec<String>>();
 
@@ -352,16 +366,42 @@ impl QueryScreen {
             })
             .collect::<Vec<String>>();
 
+        let estimated_gas: String;
+        match gas_price {
+            Ok(gas_price) => {
+                estimated_gas = format!(
+                    "{} {}",
+                    style(
+                        format_units(gas_price.mul(formatted_offer.gas_estimate), "ether")
+                            .unwrap()
+                            .parse::<f64>()
+                            .unwrap()
+                    )
+                    .green(),
+                    current_network.currency_symbol
+                )
+            }
+            Err(err) => {
+                estimated_gas = format!("error getting gas price {}", err);
+            }
+        }
+
         println!();
         println!("Yak Offer Path:");
         println!("Adapters: {}", adapters.join(" => "));
         println!("Tokens: {}", path.join(" => "));
         println!(
-            "You will get: {} {}",
-            format_units(formatted_offer.amounts.last().unwrap(), token_out.decimals).unwrap(),
+            "You will get: {:.4} {}",
+            style(
+                format_units(formatted_offer.amounts.last().unwrap(), token_out.decimals)
+                    .unwrap()
+                    .parse::<f64>()
+                    .unwrap()
+            )
+            .green(),
             token_out.symbol
         );
-        println!("Estimated gas: {}", formatted_offer.gas_estimate);
+        println!("Estimated gas price: {}", estimated_gas);
         println!();
     }
 
@@ -369,7 +409,30 @@ impl QueryScreen {
         offer: ExternalQuote,
         yak_offer: Option<FormattedOfferWithGas>,
         token_out: Token,
+        gas_price: &Result<U256, ProviderError>,
     ) {
+        let current_network = Network::get_current_network();
+
+        let estimated_gas: String;
+        match gas_price {
+            Ok(gas_price) => {
+                estimated_gas = format!(
+                    "{} {}",
+                    style(
+                        format_units(gas_price.mul(offer.estimatedGas), "ether")
+                            .unwrap()
+                            .parse::<f64>()
+                            .unwrap()
+                    )
+                    .green(),
+                    current_network.currency_symbol
+                )
+            }
+            Err(err) => {
+                estimated_gas = format!("error getting gas price {}", err);
+            }
+        }
+
         if let Some(yak_offer) = yak_offer {
             let yak_offer_amount =
                 format_units(yak_offer.amounts.last().unwrap(), token_out.decimals)
@@ -384,34 +447,31 @@ impl QueryScreen {
             .parse::<f64>()
             .unwrap();
 
-            if yak_offer_amount.lt(&offer_amount) {
-                let compare_percent =
-                    ((offer_amount - yak_offer_amount) / yak_offer_amount) * 100.0;
-                println!(
-                    "1inch is better by {:.2}% comparing to Yak",
-                    compare_percent
-                );
+            let format_string: String;
+
+            if yak_offer_amount < offer_amount {
+                format_string = format!("1inch offer price: {:.2}", style(offer_amount).green(),);
             } else {
-                let compare_percent =
-                    ((yak_offer_amount - offer_amount) / yak_offer_amount) * 100.0;
-                println!("1inch is worse by {:.2}% comparing to Yak", compare_percent);
+                format_string = format!("1inch offer price: {:.2}", style(offer_amount).red());
             }
 
-            println!("1inch estimated gas: {}", offer.estimatedGas);
+            println!("{} {}", format_string, token_out.symbol);
+            println!("1inch estimated gas: {}", estimated_gas);
 
             return;
         }
 
         println!();
         println!(
-            "1inch offer price: {}",
+            "1inch offer price: {} {}",
             format_units(
                 U256::from_dec_str(&offer.toTokenAmount).unwrap(),
                 token_out.decimals
             )
-            .unwrap()
+            .unwrap(),
+            token_out.symbol
         );
-        println!("1inch estimated gas: {}", offer.estimatedGas);
+        println!("1inch estimated gas: {}", estimated_gas);
         println!();
     }
 }

@@ -85,8 +85,6 @@ impl SwapScreen {
     }
 
     fn swap() {
-        // @todo check if token contract has permit, than no need in approve
-        // @todo suggest to use permit2, onboard user somehow
         let prompt_query = query::QueryScreen::prompt_query();
 
         let mut sp = Spinner::new(Spinners::Aesthetic, "Getting best offer...".into());
@@ -143,20 +141,26 @@ impl SwapScreen {
             println!("Path not found 😔");
 
             if is_external_allowed && !external_quote_result.toTokenAmount.is_empty() {
+                let gas_price = Query::get_gas_price();
+
                 println!("But 1inch found offer");
                 QueryScreen::format_external_offer(
                     external_quote_result,
                     None,
                     prompt_query.token_out.to_owned(),
+                    &gas_price,
                 );
             }
 
             return;
         }
 
+        let gas_price = Query::get_gas_price();
+
         QueryScreen::format_offer_result(
             formatted_offer.to_owned(),
             prompt_query.token_out.to_owned(),
+            &gas_price,
         );
 
         if is_external_allowed {
@@ -164,6 +168,7 @@ impl SwapScreen {
                 external_quote_result,
                 Some(formatted_offer.to_owned()),
                 prompt_query.token_out.to_owned(),
+                &gas_price,
             );
         }
 
@@ -256,6 +261,10 @@ impl SwapScreen {
                 .parse::<H160>()
                 .unwrap();
 
+            let has_permit =
+                Query::has_permit(prompt_query.token_in.address.parse::<H160>().unwrap());
+
+            // @dev check allowance
             let mut allowance = U256::zero();
             if !is_from_native {
                 allowance = crate::token::Token::get_allowance(
@@ -266,7 +275,10 @@ impl SwapScreen {
                 );
             }
 
-            if !is_from_native && allowance < prompt_query.amount_in {
+            let need_permit = has_permit && allowance < prompt_query.amount_in;
+
+            // @dev approve tokens
+            if !is_from_native && !has_permit && allowance < prompt_query.amount_in {
                 println!(
                     "Allowance of {} less than amount you want to swap",
                     prompt_query.token_in.symbol
@@ -312,13 +324,23 @@ impl SwapScreen {
                 adapters: formatted_offer.adapters,
             };
 
-            let swap_receipt = Swap::swap_no_split(
-                trade,
-                current_wallet.address,
-                from_to_native,
-                signing_wallet,
-                current_network.clone(),
-            );
+            let swap_receipt = if !need_permit {
+                Swap::swap_no_split(
+                    trade,
+                    current_wallet.address,
+                    from_to_native,
+                    signing_wallet,
+                    current_network.clone(),
+                )
+            } else {
+                Swap::swap_no_split_with_permit(
+                    trade,
+                    current_wallet.address,
+                    from_to_native,
+                    signing_wallet,
+                    current_network.clone(),
+                )
+            };
 
             sp.stop_with_newline();
 

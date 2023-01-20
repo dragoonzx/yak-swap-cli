@@ -1,6 +1,7 @@
 use core::fmt;
 use std::{collections::HashMap, sync::Arc};
 
+use console::style;
 use ethers::{
     abi::{AbiEncode, Address},
     prelude::{k256::ecdsa::SigningKey, SignerMiddleware},
@@ -13,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use crate::{abis::ERC20, network::Network};
 
 #[path = "../token/storage.rs"]
-mod token_storage;
+pub mod token_storage;
 
 #[derive(Deserialize)]
 struct CoingeckoVersion {
@@ -57,6 +58,17 @@ impl std::fmt::Display for Token {
     }
 }
 
+enum ExternalTokenError {
+    NetworkNotSupported,
+    ReqwestError(reqwest::Error),
+}
+
+impl From<reqwest::Error> for ExternalTokenError {
+    fn from(err: reqwest::Error) -> ExternalTokenError {
+        ExternalTokenError::ReqwestError(err)
+    }
+}
+
 impl Token {
     pub fn unknown() -> Self {
         Self {
@@ -81,16 +93,23 @@ impl Token {
 
     pub fn get_native_wrapped(chain_id: u32) -> H160 {
         let wrapped_by_chain: HashMap<u32, String> = HashMap::from([
+            // @dev WAVAX
             (
                 43114,
-                // WAVAX
                 "0xb31f66aa3c1e785363f0875a1b74e27b85fd66c7".to_owned(),
             ),
+            // @dev WDOGE
             (
                 2000,
-                // WDOGE
                 "0xb7ddc6414bf4f5515b52d8bdd69973ae205ff101".to_owned(),
             ),
+            // @dev Arbitrum WETH (need test)
+            (
+                42161,
+                "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1".to_owned(),
+            ),
+            // @dev Optimism WETH (need test)
+            (10, "0x4200000000000000000000000000000000000006".to_owned()),
         ]);
 
         wrapped_by_chain
@@ -102,27 +121,34 @@ impl Token {
 
     // @todo memoize
     #[tokio::main]
-    pub async fn get_tokens() -> Result<Vec<Token>, reqwest::Error> {
+    pub async fn get_tokens() -> Vec<Token> {
         let cur_network = Network::get_current_network();
 
-        let supported_networks_ids = Self::supported_networks_ids();
+        let coingecko_response = Self::get_external_tokens(&cur_network).await;
+        let mut coingecko_tokens: Vec<Token> = vec![];
 
-        let cur_network_id = supported_networks_ids.get(&*cur_network.short_name);
-
-        if cur_network_id.is_none() {
-            panic!("Not supported network on getting token list");
+        match coingecko_response {
+            Ok(tokens) => {
+                coingecko_tokens = tokens;
+            }
+            Err(err) => match err {
+                ExternalTokenError::NetworkNotSupported => {
+                    println!(
+                        "{}",
+                        style("Network not supported to get coingecko tokens, only locally added tokens shown").red()
+                    );
+                }
+                ExternalTokenError::ReqwestError(error) => {
+                    println!(
+                        "{} {}",
+                        style("Error while getting tokens from coingecko, only locally added tokens shown").red(),
+                        error
+                    );
+                }
+            },
         }
 
-        let external_url = format!(
-            "https://tokens.coingecko.com/{}/all.json",
-            cur_network_id.unwrap()
-        )
-        .to_owned();
-
-        let response = reqwest::get(&external_url).await?;
-        let mut coingecko = response.json::<CoingeckoResponse>().await?;
-
-        // join tokens from external source with local tokens
+        // @dev join tokens from external source with local tokens
         let local_tokens = token_storage::TokenStorage::get_local_tokens();
 
         let mut tokens_current_chain: Vec<Token> = local_tokens
@@ -130,7 +156,7 @@ impl Token {
             .filter(|token| token.chainId == Some(cur_network.chain_id))
             .collect();
 
-        tokens_current_chain.append(&mut coingecko.tokens);
+        tokens_current_chain.append(&mut coingecko_tokens);
 
         let native_token = Token {
             address: "0x0000000000000000000000000000000000000000".to_owned(),
@@ -143,7 +169,28 @@ impl Token {
 
         tokens_current_chain.push(native_token);
 
-        Ok(tokens_current_chain)
+        tokens_current_chain
+    }
+
+    async fn get_external_tokens(cur_network: &Network) -> Result<Vec<Token>, ExternalTokenError> {
+        let supported_networks_ids = Self::supported_networks_ids();
+
+        let cur_network_id = supported_networks_ids.get(&*cur_network.short_name);
+
+        if cur_network_id.is_none() {
+            return Err(ExternalTokenError::NetworkNotSupported);
+        }
+
+        let external_url = format!(
+            "https://tokens.coingecko.com/{}/all.json",
+            cur_network_id.unwrap()
+        )
+        .to_owned();
+
+        let response = reqwest::get(&external_url).await?;
+        let mut coingecko = response.json::<CoingeckoResponse>().await?;
+
+        Ok(coingecko.tokens)
     }
 
     pub fn is_native(address: H160) -> bool {

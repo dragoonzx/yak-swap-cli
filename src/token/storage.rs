@@ -51,4 +51,18 @@ impl TokenStorage {
 
         token
     }
+
+    pub fn remove_token(token: Token) {
+        let mut db_instance = DB.lock().unwrap();
+
+        let tokens_len = db_instance.llen(Self::DB_TOKENS_LIST);
+
+        if tokens_len <= 1 {
+            db_instance.lrem_list(Self::DB_TOKENS_LIST);
+            return;
+        }
+
+        // remove wallet from list
+        db_instance.lrem_value(Self::DB_TOKENS_LIST, &token);
+    }
 }

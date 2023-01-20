@@ -1059,6 +1059,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "ethers-derive-eip712"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "083ad25436e147ab3be457a680b018a9fa981a3f8b7379f5dc19024223d0d6e5"
+dependencies = [
+ "ethers-core",
+ "hex",
+ "quote",
+ "serde_json",
+ "syn",
+]
+
+[[package]]
 name = "ethers-etherscan"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2818,9 +2831,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.87"
+version = "1.0.91"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6ce777b7b150d76b9cf60d28b55f5847135a003f7d7350c6be7a773508ce7d45"
+checksum = "877c235533714907a8c2464236f5c4b2a17262ef1bd71f38f35ea592c8da6883"
 dependencies = [
  "itoa",
  "ryu",
@@ -3836,6 +3849,7 @@ dependencies = [
  "dialoguer 0.10.2",
  "eth-keystore",
  "ethers",
+ "ethers-derive-eip712",
  "futures",
  "lazy_static",
  "num-derive",

@@ -7,10 +7,10 @@ use crate::{
 };
 use adapters::Adapter;
 use ethers::{
-    abi::Address,
+    abi::{short_signature, Address, FixedBytes},
     contract::Contract,
     prelude::abigen,
-    providers::{Http, Provider},
+    providers::{Http, Middleware, Provider, ProviderError},
     types::{H160, U256},
 };
 use futures::future;
@@ -190,77 +190,6 @@ impl Query {
         }
     }
 
-    // {
-    //     "fromToken": {
-    //       "symbol": "YAK",
-    //       "name": "Yak Token",
-    //       "decimals": 18,
-    //       "address": "0x59414b3089ce2af0010e7523dea7e2b35d776ec7",
-    //       "logoURI": "https://tokens.1inch.io/0x59414b3089ce2af0010e7523dea7e2b35d776ec7.png",
-    //       "eip2612": true,
-    //       "tags": [
-    //         "tokens"
-    //       ]
-    //     },
-    //     "toToken": {
-    //       "symbol": "WAVAX",
-    //       "name": "Wrapped AVAX",
-    //       "decimals": 18,
-    //       "address": "0xb31f66aa3c1e785363f0875a1b74e27b85fd66c7",
-    //       "logoURI": "https://tokens.1inch.io/0xb31f66aa3c1e785363f0875a1b74e27b85fd66c7.png",
-    //       "wrappedNative": "true",
-    //       "tags": [
-    //         "tokens",
-    //         "PEG:AVAX"
-    //       ]
-    //     },
-    //     "toTokenAmount": "156365459656653720063",
-    //     "fromTokenAmount": "10000000000000000000",
-    //     "protocols": [
-    //       [
-    //         [
-    //           {
-    //             "name": "PANGOLIN",
-    //             "part": 100,
-    //             "fromTokenAddress": "0x59414b3089ce2af0010e7523dea7e2b35d776ec7",
-    //             "toTokenAddress": "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e"
-    //           }
-    //         ],
-    //         [
-    //           {
-    //             "name": "AVALANCHE_KYBERSWAP_ELASTIC",
-    //             "part": 100,
-    //             "fromTokenAddress": "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e",
-    //             "toTokenAddress": "0xb31f66aa3c1e785363f0875a1b74e27b85fd66c7"
-    //           }
-    //         ]
-    //       ],
-    //       [
-    //         [
-    //           {
-    //             "name": "LYDIA",
-    //             "part": 2,
-    //             "fromTokenAddress": "0x59414b3089ce2af0010e7523dea7e2b35d776ec7",
-    //             "toTokenAddress": "0xb31f66aa3c1e785363f0875a1b74e27b85fd66c7"
-    //           },
-    //           {
-    //             "name": "TRADERJOE",
-    //             "part": 8,
-    //             "fromTokenAddress": "0x59414b3089ce2af0010e7523dea7e2b35d776ec7",
-    //             "toTokenAddress": "0xb31f66aa3c1e785363f0875a1b74e27b85fd66c7"
-    //           },
-    //           {
-    //             "name": "PANGOLIN",
-    //             "part": 90,
-    //             "fromTokenAddress": "0x59414b3089ce2af0010e7523dea7e2b35d776ec7",
-    //             "toTokenAddress": "0xb31f66aa3c1e785363f0875a1b74e27b85fd66c7"
-    //           }
-    //         ]
-    //       ]
-    //     ],
-    //     "estimatedGas": 1057918
-    //   }
-
     #[tokio::main]
     pub async fn get_1inch_price(
         amount: U256,
@@ -311,6 +240,41 @@ impl Query {
         let external_quote: ExternalQuote = response.json().await?;
 
         Ok(external_quote)
+    }
+
+    #[tokio::main]
+    pub async fn get_gas_price() -> Result<U256, ProviderError> {
+        let current_network = Network::get_current_network();
+        let provider = Arc::new(
+            Provider::<Http>::try_from(current_network.rpc_url)
+                .expect("could not instantiate HTTP Provider"),
+        );
+
+        let gas_price = provider.get_gas_price().await?;
+
+        Ok(gas_price)
+    }
+
+    #[tokio::main]
+    pub async fn has_permit(token_address: H160) -> bool {
+        let current_network = Network::get_current_network();
+        let provider = Arc::new(
+            Provider::<Http>::try_from(current_network.rpc_url)
+                .expect("could not instantiate HTTP Provider"),
+        );
+
+        let contract_code = provider.get_code(token_address, None).await;
+
+        match contract_code {
+            Ok(contract_code) => {
+                let sig = "d505accf";
+
+                let has_permit = contract_code.contains(&sig.as_bytes()[0]);
+
+                has_permit
+            }
+            Err(_) => false,
+        }
     }
 }
 

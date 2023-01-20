@@ -21,3 +21,4 @@ tokio = { version = "1", features = ["full"] }
 reqwest = { version = "0.11", features = ["json"] }
 spinners = "4.1.0"
 settimeout = "0.1"
+ethers-derive-eip712 = "1.0.2"

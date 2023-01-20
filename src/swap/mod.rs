@@ -4,18 +4,28 @@ use std::{
 };
 
 use ethers::{
-    prelude::{k256::ecdsa::SigningKey, SignerMiddleware},
-    providers::{Http, Provider},
-    signers::Wallet,
-    types::{TransactionReceipt, H160, U256},
+    abi::{self, Address},
+    prelude::{
+        k256::ecdsa::{recoverable::Signature, SigningKey},
+        EthAbiType, NonceManagerMiddleware, SignerMiddleware,
+    },
+    providers::{Http, Middleware, Provider},
+    signers::{Signer, Wallet},
+    types::{
+        transaction::eip712::{encode_data, Eip712},
+        TransactionReceipt, H160, H256, U256,
+    },
+    utils::keccak256,
 };
 
 use crate::{
-    abis::{Trade, YakRouter, IWETH},
+    abis::{Trade, YakRouter, ERC20, IWETH},
     network::Network,
     settings::Settings,
     token::Token,
 };
+
+use ethers_derive_eip712::*;
 
 #[derive(Clone, Copy)]
 pub enum FromToNative {
@@ -94,6 +104,166 @@ impl Swap {
             }
         } else {
             let call = yak_router_contract.swap_no_split(trade, to, U256::from(0));
+            let pending_tx = call.send().await.expect("Error when swap no split call");
+
+            let receipt = pending_tx
+                .await
+                .expect("Error while getting confirmations on swap no split");
+
+            receipt
+        }
+    }
+
+    #[tokio::main]
+    pub async fn swap_no_split_with_permit(
+        mut trade: Trade,
+        to: H160,
+        from_to_native: Option<FromToNative>,
+        signer: &Wallet<SigningKey>,
+        current_network: Arc<Network>,
+    ) -> Option<TransactionReceipt> {
+        let provider = Arc::new(
+            Provider::<Http>::try_from(current_network.rpc_url.to_owned())
+                .expect("could not instantiate HTTP Provider"),
+        );
+
+        let provider = Arc::new(
+            SignerMiddleware::new_with_provider_chain(provider, signer.to_owned())
+                .await
+                .unwrap(),
+        );
+
+        let yak_router_contract = YakRouter::new(
+            current_network
+                .yak_router
+                .as_ref()
+                .unwrap()
+                .parse::<H160>()
+                .unwrap(),
+            provider.clone(),
+        );
+
+        let token_in_contract = ERC20::new(trade.path[0], provider.clone());
+
+        trade.handle_slippage_setting();
+
+        let default_deadline = U256::MAX;
+
+        let nonce_count = token_in_contract
+            .nonces(signer.address())
+            .call()
+            .await
+            .expect("Expect to get nonce");
+
+        let owner: Address = signer.address();
+        let spender: Address = current_network
+            .yak_router
+            .as_ref()
+            .unwrap()
+            .parse::<H160>()
+            .unwrap();
+        let value = trade.amount_in;
+        let nonce = nonce_count;
+        let deadline = default_deadline;
+        let verifying_contract: Address = trade.path[0];
+        let name = "Yak Token";
+        let version = "1";
+        let chainid = current_network.chain_id;
+
+        // Typehash for the permit() function
+        let permit_typehash = keccak256(
+            "Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)",
+        );
+        // Typehash for the struct used to generate the domain separator
+        let domain_typehash = keccak256(
+            "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)",
+        );
+
+        // Corresponds to solidity's abi.encode()
+        let domain_separator_input = abi::encode(&vec![
+            ethers::abi::Token::Uint(U256::from(domain_typehash)),
+            ethers::abi::Token::Uint(U256::from(keccak256(&name))),
+            ethers::abi::Token::Uint(U256::from(keccak256(&version))),
+            ethers::abi::Token::Uint(U256::from(chainid)),
+            ethers::abi::Token::Address(verifying_contract),
+        ]);
+
+        let domain_separator = keccak256(&domain_separator_input);
+
+        let struct_input = abi::encode(&vec![
+            ethers::abi::Token::Uint(U256::from(permit_typehash)),
+            ethers::abi::Token::Address(owner),
+            ethers::abi::Token::Address(spender),
+            ethers::abi::Token::Uint(value),
+            ethers::abi::Token::Uint(nonce),
+            ethers::abi::Token::Uint(deadline),
+        ]);
+        let struct_hash = keccak256(&struct_input);
+
+        let digest_input = [
+            &[0x19, 0x01],
+            domain_separator.as_ref(),
+            struct_hash.as_ref(),
+        ]
+        .concat();
+
+        let permit_hash = <H256>::from(keccak256(&digest_input));
+
+        let signature = signer.sign_hash(permit_hash);
+
+        // if trade path starts from avax swap_no_split_from_avax
+        // else if trade path to avax swap_no_split_to_avax
+        if let Some(from_to_native) = from_to_native {
+            match from_to_native {
+                FromToNative::FromNative => {
+                    let value_amount = trade.amount_in;
+
+                    let call = yak_router_contract
+                        .swap_no_split_from_avax(trade, to, U256::from(0))
+                        .value(value_amount);
+                    let pending_tx = call
+                        .send()
+                        .await
+                        .expect("Error when swap no split from avax call");
+
+                    let receipt = pending_tx
+                        .await
+                        .expect("Error while getting confirmations on swap no split from avax");
+
+                    receipt
+                }
+                FromToNative::ToNative => {
+                    let call = yak_router_contract.swap_no_split_to_avax_with_permit(
+                        trade,
+                        to,
+                        U256::from(0),
+                        default_deadline,
+                        signature.v as u8,
+                        <[u8; 32]>::from(signature.r),
+                        <[u8; 32]>::from(signature.s),
+                    );
+                    let pending_tx = call
+                        .send()
+                        .await
+                        .expect("Error when swap no split to avax call");
+
+                    let receipt = pending_tx
+                        .await
+                        .expect("Error while getting confirmations on swap no split to avax");
+
+                    receipt
+                }
+            }
+        } else {
+            let call = yak_router_contract.swap_no_split_with_permit(
+                trade,
+                to,
+                U256::from(0),
+                default_deadline,
+                signature.v as u8,
+                <[u8; 32]>::from(signature.r),
+                <[u8; 32]>::from(signature.s),
+            );
             let pending_tx = call.send().await.expect("Error when swap no split call");
 
             let receipt = pending_tx
