@@ -43,8 +43,8 @@ enum StartScreens {
 
 impl Terminal {
     pub fn greet() {
-        let welcome_message = "Yak Swap CLI v0.1 (beta)";
-        println!("{}", welcome_message);
+        const VERSION: &str = env!("CARGO_PKG_VERSION");
+        println!("Yak Swap CLI v{}", VERSION);
     }
 
     pub fn settings_bar() {
