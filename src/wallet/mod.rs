@@ -5,29 +5,22 @@ use std::sync::Mutex;
 
 use console::Term;
 use dialoguer::theme::ColorfulTheme;
+use dialoguer::Password;
 use dialoguer::{Confirm, Select};
-use dialoguer::{Input, Password};
 use eth_keystore::{decrypt_key, encrypt_key};
 use ethers::prelude::k256::ecdsa::SigningKey;
-use ethers::prelude::k256::elliptic_curve::Error;
 use ethers::{
-    prelude::{
-        k256::SecretKey,
-        rand::{self, RngCore},
-    },
+    prelude::rand::{self, RngCore},
     signers::{LocalWallet, Signer, Wallet},
-    types::H160,
 };
 use lazy_static::lazy_static;
 
 use storage::WalletStorage;
 
-use crate::terminal::Terminal;
-
 pub mod storage;
 
 pub struct AccountWallet {
-    wallet: Wallet<SigningKey>,
+    pub wallet: Wallet<SigningKey>,
 }
 
 lazy_static! {
@@ -62,7 +55,7 @@ impl AccountWallet {
             rng.fill_bytes(pk_bytes.as_bytes_mut());
         }
 
-        encrypt_key(&dir, &mut rng, &pk, password, Some(&name)).unwrap();
+        encrypt_key(dir, &mut rng, &pk, password, Some(&name)).unwrap();
 
         WalletStorage::save_wallet(&name, address);
 
@@ -81,7 +74,7 @@ impl AccountWallet {
 
                 Ok(Self { wallet })
             }
-            Err(err) => {
+            Err(_) => {
                 println!("Error, wrong password or account does not exist");
 
                 if Confirm::new()

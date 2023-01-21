@@ -17,7 +17,7 @@ enum AccountTopics {
 }
 
 impl AccountScreen {
-    pub fn render() -> std::io::Result<()> {
+    pub fn render() {
         let topics = [
             "1. Add account",
             "2. Remove account",
@@ -33,7 +33,8 @@ impl AccountScreen {
         let selection = Select::with_theme(&ColorfulTheme::default())
             .items(&topics)
             .default(0)
-            .interact_on_opt(&Term::stderr())?;
+            .interact_on_opt(&Term::stderr())
+            .unwrap();
 
         match selection {
             Some(index) => match FromPrimitive::from_usize(index) {
@@ -56,8 +57,6 @@ impl AccountScreen {
             },
             None => println!("You did not select anything"),
         }
-
-        Ok(())
     }
 
     fn add_account() -> Result<AccountWallet, Error> {

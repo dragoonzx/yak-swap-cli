@@ -5,16 +5,10 @@ use std::{
 
 use ethers::{
     abi::{self, Address},
-    prelude::{
-        k256::ecdsa::{recoverable::Signature, SigningKey},
-        EthAbiType, NonceManagerMiddleware, SignerMiddleware,
-    },
-    providers::{Http, Middleware, Provider},
+    prelude::{k256::ecdsa::SigningKey, SignerMiddleware},
+    providers::{Http, Provider},
     signers::{Signer, Wallet},
-    types::{
-        transaction::eip712::{encode_data, Eip712},
-        TransactionReceipt, H160, H256, U256,
-    },
+    types::{TransactionReceipt, H160, H256, U256},
     utils::keccak256,
 };
 
@@ -24,8 +18,6 @@ use crate::{
     settings::Settings,
     token::Token,
 };
-
-use ethers_derive_eip712::*;
 
 #[derive(Clone, Copy)]
 pub enum FromToNative {
@@ -82,11 +74,9 @@ impl Swap {
                         .await
                         .expect("Error when swap no split from avax call");
 
-                    let receipt = pending_tx
+                    pending_tx
                         .await
-                        .expect("Error while getting confirmations on swap no split from avax");
-
-                    receipt
+                        .expect("Error while getting confirmations on swap no split from avax")
                 }
                 FromToNative::ToNative => {
                     let call = yak_router_contract.swap_no_split_to_avax(trade, to, U256::from(0));
@@ -95,22 +85,18 @@ impl Swap {
                         .await
                         .expect("Error when swap no split to avax call");
 
-                    let receipt = pending_tx
+                    pending_tx
                         .await
-                        .expect("Error while getting confirmations on swap no split to avax");
-
-                    receipt
+                        .expect("Error while getting confirmations on swap no split to avax")
                 }
             }
         } else {
             let call = yak_router_contract.swap_no_split(trade, to, U256::from(0));
             let pending_tx = call.send().await.expect("Error when swap no split call");
 
-            let receipt = pending_tx
+            pending_tx
                 .await
-                .expect("Error while getting confirmations on swap no split");
-
-            receipt
+                .expect("Error while getting confirmations on swap no split")
         }
     }
 
@@ -180,10 +166,10 @@ impl Swap {
         );
 
         // Corresponds to solidity's abi.encode()
-        let domain_separator_input = abi::encode(&vec![
+        let domain_separator_input = abi::encode(&[
             ethers::abi::Token::Uint(U256::from(domain_typehash)),
-            ethers::abi::Token::Uint(U256::from(keccak256(&name))),
-            ethers::abi::Token::Uint(U256::from(keccak256(&version))),
+            ethers::abi::Token::Uint(U256::from(keccak256(name))),
+            ethers::abi::Token::Uint(U256::from(keccak256(version))),
             ethers::abi::Token::Uint(U256::from(chainid)),
             ethers::abi::Token::Address(verifying_contract),
         ]);
@@ -226,11 +212,9 @@ impl Swap {
                         .await
                         .expect("Error when swap no split from avax call");
 
-                    let receipt = pending_tx
+                    pending_tx
                         .await
-                        .expect("Error while getting confirmations on swap no split from avax");
-
-                    receipt
+                        .expect("Error while getting confirmations on swap no split from avax")
                 }
                 FromToNative::ToNative => {
                     let call = yak_router_contract.swap_no_split_to_avax_with_permit(
@@ -247,11 +231,9 @@ impl Swap {
                         .await
                         .expect("Error when swap no split to avax call");
 
-                    let receipt = pending_tx
+                    pending_tx
                         .await
-                        .expect("Error while getting confirmations on swap no split to avax");
-
-                    receipt
+                        .expect("Error while getting confirmations on swap no split to avax")
                 }
             }
         } else {
@@ -298,11 +280,9 @@ impl Swap {
         let call = wrap_contract.deposit().value(amount_in);
         let pending_tx = call.send().await.expect("Error when wrap deposit call");
 
-        let receipt = pending_tx
+        pending_tx
             .await
-            .expect("Error while getting confirmations on wrap deposit");
-
-        receipt
+            .expect("Error while getting confirmations on wrap deposit")
     }
 
     #[tokio::main]
@@ -329,11 +309,9 @@ impl Swap {
         let call = wrap_contract.withdraw(amount_in);
         let pending_tx = call.send().await.expect("Error when wrap withdraw call");
 
-        let receipt = pending_tx
+        pending_tx
             .await
-            .expect("Error while getting confirmations on wrap withdraw");
-
-        receipt
+            .expect("Error while getting confirmations on wrap withdraw")
     }
 
     pub fn decide_from_to_native(address_from: H160, address_to: H160) -> Option<FromToNative> {
@@ -354,7 +332,7 @@ impl Trade {
         // @dev e.g. 5 = 0.5%
         let slippage = Settings::get_slippage();
 
-        let amount_out_with_slippage = U256::from(self.amount_out).sub(
+        let amount_out_with_slippage = self.amount_out.sub(
             self.amount_out
                 .checked_div(U256::from(1000))
                 .unwrap()

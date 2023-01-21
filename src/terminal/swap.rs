@@ -7,15 +7,14 @@ use crate::query::{ExternalQuote, ExternalQuoteError, Query};
 use crate::settings::Settings;
 use crate::swap::{FromToNative, Swap};
 use crate::terminal::storage::WalletStorage;
+use crate::token::Token;
 use crate::Terminal;
-use crate::{token::Token, wallet::AccountWallet};
 use console::{style, Term};
-use dialoguer::{theme::ColorfulTheme, FuzzySelect, Input, Select};
+use dialoguer::{theme::ColorfulTheme, Input, Select};
 use dialoguer::{Confirm, Password};
 use ethers::{
-    prelude::k256::elliptic_curve::Error,
     types::{H160, U256},
-    utils::{format_units, parse_units},
+    utils::parse_units,
 };
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
@@ -23,19 +22,9 @@ use spinners::{Spinner, Spinners};
 
 use super::query::QueryScreen;
 
-#[path = "./query.rs"]
-mod query;
-
-#[path = "../wallet/storage.rs"]
-mod wallet_storage;
+use crate::wallet::storage;
 
 pub struct SwapScreen {}
-
-pub struct SwapPrompt {
-    amount_in: U256,
-    token_in: Token,
-    token_out: Token,
-}
 
 #[derive(FromPrimitive)]
 enum SwapTopics {
@@ -46,7 +35,7 @@ enum SwapTopics {
 }
 
 impl SwapScreen {
-    pub fn render() -> std::io::Result<()> {
+    pub fn render() {
         let topics = [
             "1. Swap tokens",
             "2. Wrap native token",
@@ -57,7 +46,8 @@ impl SwapScreen {
         let selection = Select::with_theme(&ColorfulTheme::default())
             .items(&topics)
             .default(0)
-            .interact_on_opt(&Term::stderr())?;
+            .interact_on_opt(&Term::stderr())
+            .unwrap();
 
         match selection {
             Some(index) => match FromPrimitive::from_usize(index) {
@@ -80,12 +70,10 @@ impl SwapScreen {
             },
             None => println!("You did not select anything"),
         }
-
-        Ok(())
     }
 
     fn swap() {
-        let prompt_query = query::QueryScreen::prompt_query();
+        let prompt_query = QueryScreen::prompt_query();
 
         let mut sp = Spinner::new(Spinners::Aesthetic, "Getting best offer...".into());
 
@@ -104,8 +92,8 @@ impl SwapScreen {
         let is_external_allowed = Settings::is_external_allowed();
 
         let mut external_quote_result = ExternalQuote {
-            toTokenAmount: String::default(),
-            estimatedGas: 0,
+            to_token_amount: String::default(),
+            estimated_gas: 0,
         };
 
         if is_external_allowed {
@@ -140,14 +128,14 @@ impl SwapScreen {
         if formatted_offer.adapters.is_empty() {
             println!("Path not found 😔");
 
-            if is_external_allowed && !external_quote_result.toTokenAmount.is_empty() {
+            if is_external_allowed && !external_quote_result.to_token_amount.is_empty() {
                 let gas_price = Query::get_gas_price();
 
                 println!("But 1inch found offer");
                 QueryScreen::format_external_offer(
                     external_quote_result,
                     None,
-                    prompt_query.token_out.to_owned(),
+                    prompt_query.token_out,
                     &gas_price,
                 );
             }
@@ -198,7 +186,7 @@ impl SwapScreen {
             let wallet =
                 crate::wallet::AccountWallet::decrypt_wallet(current_wallet.name, password);
 
-            if !wallet.is_ok() {
+            if wallet.is_err() {
                 return;
             }
 
@@ -215,7 +203,7 @@ impl SwapScreen {
 
             let mut sp = Spinner::new(Spinners::Aesthetic, "Getting current balance...".into());
 
-            let mut token_in_balance = U256::zero();
+            let token_in_balance: U256;
             let mut is_from_native = false;
 
             if let Some(from_to_native) = from_to_native {
@@ -361,7 +349,7 @@ impl SwapScreen {
     }
 
     fn wrap_native() {
-        let current_wallet = wallet_storage::WalletStorage::get_current_wallet();
+        let current_wallet = storage::WalletStorage::get_current_wallet();
 
         if let Some(current_wallet) = current_wallet {
             let current_network = Arc::new(Network::get_current_network());
@@ -419,7 +407,7 @@ impl SwapScreen {
     }
 
     fn unwrap_native() {
-        let current_wallet = wallet_storage::WalletStorage::get_current_wallet();
+        let current_wallet = storage::WalletStorage::get_current_wallet();
 
         if let Some(current_wallet) = current_wallet {
             let current_network = Arc::new(Network::get_current_network());

@@ -17,7 +17,7 @@ impl fmt::Display for WalletStorage {
 }
 
 impl WalletStorage {
-    pub const DB_WALLETS_LIST: &'static str = "wallets";
+    const DB_WALLETS_LIST: &'static str = "wallets";
     pub const DB_CURRENT_WALLET: &'static str = "current";
 
     // name: String, address: H160
@@ -40,9 +40,7 @@ impl WalletStorage {
     pub fn get_current_wallet() -> Option<Self> {
         let db_instance = DB.lock().unwrap();
 
-        let current_wallet = db_instance.get::<WalletStorage>(WalletStorage::DB_CURRENT_WALLET);
-
-        current_wallet
+        db_instance.get::<WalletStorage>(WalletStorage::DB_CURRENT_WALLET)
     }
 
     pub fn set_current_wallet(name: &str, address: H160) {
@@ -89,19 +87,23 @@ impl WalletStorage {
         let wallets_len = db_instance.llen(WalletStorage::DB_WALLETS_LIST);
 
         if wallets_len <= 1 {
-            db_instance.lrem_list(WalletStorage::DB_WALLETS_LIST);
-            db_instance.rem(WalletStorage::DB_CURRENT_WALLET);
+            db_instance
+                .lrem_list(WalletStorage::DB_WALLETS_LIST)
+                .unwrap();
+            db_instance.rem(WalletStorage::DB_CURRENT_WALLET).unwrap();
             return;
         }
 
         // check if wallet is current wallet => if yes delete current wallet key
         let current_wallet = db_instance.get::<WalletStorage>(WalletStorage::DB_CURRENT_WALLET);
 
-        if let Some(current_wallet) = current_wallet {
-            db_instance.rem(WalletStorage::DB_CURRENT_WALLET);
+        if current_wallet.is_some() {
+            db_instance.rem(WalletStorage::DB_CURRENT_WALLET).unwrap();
         }
 
         // remove wallet from list
-        db_instance.lrem_value(WalletStorage::DB_WALLETS_LIST, &wallet);
+        db_instance
+            .lrem_value(WalletStorage::DB_WALLETS_LIST, &wallet)
+            .unwrap();
     }
 }

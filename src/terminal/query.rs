@@ -5,22 +5,20 @@ use crate::query::adapters::Adapter;
 use crate::query::{ExternalQuote, ExternalQuoteError, Query};
 use crate::settings::Settings;
 use crate::swap::{FromToNative, Swap};
+use crate::token::Token;
 use crate::Terminal;
-use crate::{token::Token, wallet::AccountWallet};
 use console::style;
 use console::Term;
 use dialoguer::{theme::ColorfulTheme, FuzzySelect, Input, Select};
 use ethers::providers::ProviderError;
-use ethers::utils::format_ether;
 use ethers::{
-    prelude::k256::elliptic_curve::Error,
     types::{H160, U256},
     utils::{format_units, parse_units},
 };
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 use spinners::{Spinner, Spinners};
-use std::ops::{Mul, Sub};
+use std::ops::Mul;
 use std::sync::Arc;
 
 use crate::wallet::storage::WalletStorage;
@@ -43,7 +41,7 @@ enum QueryTopics {
 }
 
 impl QueryScreen {
-    pub fn render() -> std::io::Result<()> {
+    pub fn render() {
         let topics = [
             "1. Query best path",
             "2. Query single adapter",
@@ -54,7 +52,8 @@ impl QueryScreen {
         let selection = Select::with_theme(&ColorfulTheme::default())
             .items(&topics)
             .default(0)
-            .interact_on_opt(&Term::stderr())?;
+            .interact_on_opt(&Term::stderr())
+            .unwrap();
 
         match selection {
             Some(index) => match FromPrimitive::from_usize(index) {
@@ -76,8 +75,8 @@ impl QueryScreen {
                     let is_external_allowed = Settings::is_external_allowed();
 
                     let mut external_quote_result = ExternalQuote {
-                        toTokenAmount: String::default(),
-                        estimatedGas: 0,
+                        to_token_amount: String::default(),
+                        estimated_gas: 0,
                     };
 
                     if is_external_allowed {
@@ -122,7 +121,7 @@ impl QueryScreen {
                                 println!("Yak path not found 😔");
 
                                 if is_external_allowed
-                                    && !external_quote_result.toTokenAmount.is_empty()
+                                    && !external_quote_result.to_token_amount.is_empty()
                                 {
                                     let gas_price = Query::get_gas_price();
 
@@ -148,8 +147,8 @@ impl QueryScreen {
                                 if is_external_allowed {
                                     Self::format_external_offer(
                                         external_quote_result,
-                                        Some(formatted_offer.to_owned()),
-                                        prompt_query.token_out.to_owned(),
+                                        Some(formatted_offer),
+                                        prompt_query.token_out,
                                         &gas_price,
                                     );
                                 }
@@ -168,7 +167,8 @@ impl QueryScreen {
                     let adapter_selection = Select::with_theme(&ColorfulTheme::default())
                         .items(&adapters)
                         .default(0)
-                        .interact_on_opt(&Term::stderr())?;
+                        .interact_on_opt(&Term::stderr())
+                        .unwrap();
 
                     match adapter_selection {
                         Some(index) => {
@@ -227,8 +227,6 @@ impl QueryScreen {
             },
             None => println!("You did not select anything"),
         }
-
-        Ok(())
     }
 
     pub fn prompt_query() -> QueryPrompt {
@@ -253,15 +251,12 @@ impl QueryScreen {
         if let Some(current_wallet) = current_wallet {
             let token_in_balance = Self::get_token_in_balance(token_in.to_owned(), current_wallet);
 
-            match token_in_balance {
-                Ok(balance) => {
-                    println!(
-                        "You have {} {}",
-                        format_units(balance, token_in.decimals).unwrap(),
-                        token_in.symbol
-                    );
-                }
-                _ => {}
+            if let Ok(balance) = token_in_balance {
+                println!(
+                    "You have {} {}",
+                    format_units(balance, token_in.decimals).unwrap(),
+                    token_in.symbol
+                );
             }
         }
 
@@ -300,19 +295,19 @@ impl QueryScreen {
 
         let mut sp = Spinner::new(Spinners::Aesthetic, "Getting current balance...".into());
 
-        let mut token_in_balance = U256::zero();
+        let token_in_balance: U256;
 
         if let Some(from_to_native) = from_to_native {
             match from_to_native {
                 FromToNative::FromNative => {
                     token_in_balance =
-                        Token::get_native_balance(current_wallet.address, current_network.clone());
+                        Token::get_native_balance(current_wallet.address, current_network);
                 }
                 _ => {
                     token_in_balance = crate::token::Token::get_token_balance(
                         current_wallet.address,
                         token_in.address.parse::<H160>().unwrap(),
-                        current_network.clone(),
+                        current_network,
                     );
                 }
             }
@@ -320,7 +315,7 @@ impl QueryScreen {
             token_in_balance = crate::token::Token::get_token_balance(
                 current_wallet.address,
                 token_in.address.parse::<H160>().unwrap(),
-                current_network.clone(),
+                current_network,
             );
         }
 
@@ -366,10 +361,9 @@ impl QueryScreen {
             })
             .collect::<Vec<String>>();
 
-        let estimated_gas: String;
-        match gas_price {
+        let estimated_gas = match gas_price {
             Ok(gas_price) => {
-                estimated_gas = format!(
+                format!(
                     "{} {}",
                     style(
                         format_units(gas_price.mul(formatted_offer.gas_estimate), "ether")
@@ -382,9 +376,9 @@ impl QueryScreen {
                 )
             }
             Err(err) => {
-                estimated_gas = format!("error getting gas price {}", err);
+                format!("error getting gas price {}", err)
             }
-        }
+        };
 
         println!();
         println!("Yak Offer Path:");
@@ -413,13 +407,12 @@ impl QueryScreen {
     ) {
         let current_network = Network::get_current_network();
 
-        let estimated_gas: String;
-        match gas_price {
+        let estimated_gas = match gas_price {
             Ok(gas_price) => {
-                estimated_gas = format!(
+                format!(
                     "{} {}",
                     style(
-                        format_units(gas_price.mul(offer.estimatedGas), "ether")
+                        format_units(gas_price.mul(offer.estimated_gas), "ether")
                             .unwrap()
                             .parse::<f64>()
                             .unwrap()
@@ -429,9 +422,9 @@ impl QueryScreen {
                 )
             }
             Err(err) => {
-                estimated_gas = format!("error getting gas price {}", err);
+                format!("error getting gas price {}", err)
             }
-        }
+        };
 
         if let Some(yak_offer) = yak_offer {
             let yak_offer_amount =
@@ -440,20 +433,18 @@ impl QueryScreen {
                     .parse::<f64>()
                     .unwrap();
             let offer_amount = format_units(
-                U256::from_dec_str(&offer.toTokenAmount).unwrap(),
+                U256::from_dec_str(&offer.to_token_amount).unwrap(),
                 token_out.decimals,
             )
             .unwrap()
             .parse::<f64>()
             .unwrap();
 
-            let format_string: String;
-
-            if yak_offer_amount < offer_amount {
-                format_string = format!("1inch offer price: {:.2}", style(offer_amount).green(),);
+            let format_string = if yak_offer_amount < offer_amount {
+                format!("1inch offer price: {:.2}", style(offer_amount).green())
             } else {
-                format_string = format!("1inch offer price: {:.2}", style(offer_amount).red());
-            }
+                format!("1inch offer price: {:.2}", style(offer_amount).red())
+            };
 
             println!("{} {}", format_string, token_out.symbol);
             println!("1inch estimated gas: {}", estimated_gas);
@@ -465,7 +456,7 @@ impl QueryScreen {
         println!(
             "1inch offer price: {} {}",
             format_units(
-                U256::from_dec_str(&offer.toTokenAmount).unwrap(),
+                U256::from_dec_str(&offer.to_token_amount).unwrap(),
                 token_out.decimals
             )
             .unwrap(),

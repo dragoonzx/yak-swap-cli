@@ -1,7 +1,4 @@
-use std::fmt;
-
 use crate::db::DB;
-use ethers::types::H160;
 
 use crate::token::Token;
 
@@ -39,12 +36,11 @@ impl TokenStorage {
         }
 
         let token = Token {
-            address: address.to_owned(),
-            chainId: Some(chain_id),
+            address,
+            chain_id: Some(chain_id),
             decimals,
-            logoURI: "".to_owned(),
-            name: name.to_owned(),
-            symbol: symbol.to_owned(),
+            name,
+            symbol,
         };
 
         db_instance.ladd(TokenStorage::DB_TOKENS_LIST, &token);
@@ -58,11 +54,13 @@ impl TokenStorage {
         let tokens_len = db_instance.llen(Self::DB_TOKENS_LIST);
 
         if tokens_len <= 1 {
-            db_instance.lrem_list(Self::DB_TOKENS_LIST);
+            db_instance.lrem_list(Self::DB_TOKENS_LIST).unwrap();
             return;
         }
 
         // remove wallet from list
-        db_instance.lrem_value(Self::DB_TOKENS_LIST, &token);
+        db_instance
+            .lrem_value(Self::DB_TOKENS_LIST, &token)
+            .unwrap();
     }
 }

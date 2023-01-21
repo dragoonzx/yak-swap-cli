@@ -1,7 +1,6 @@
-use crate::{settings::Settings, token::Token, Terminal};
+use crate::{settings::Settings, Terminal};
 use console::Term;
-use dialoguer::{theme::ColorfulTheme, Confirm, Input, Password, Select};
-use ethers::prelude::k256::elliptic_curve::Error;
+use dialoguer::{theme::ColorfulTheme, Confirm, Select};
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 
@@ -16,7 +15,7 @@ enum SettingsTopics {
 }
 
 impl SettingsScreen {
-    pub fn render() -> std::io::Result<()> {
+    pub fn render() {
         let topics = [
             "1. Path hops",
             "2. Slippage tolerance",
@@ -27,7 +26,8 @@ impl SettingsScreen {
         let selection = Select::with_theme(&ColorfulTheme::default())
             .items(&topics)
             .default(0)
-            .interact_on_opt(&Term::stderr())?;
+            .interact_on_opt(&Term::stderr())
+            .unwrap();
 
         match selection {
             Some(index) => match FromPrimitive::from_usize(index) {
@@ -56,8 +56,6 @@ impl SettingsScreen {
             },
             None => println!("You did not select anything"),
         }
-
-        Ok(())
     }
 
     fn select_max_steps() -> i32 {
@@ -77,9 +75,7 @@ impl SettingsScreen {
             .interact_on_opt(&Term::stderr())
             .unwrap();
 
-        let max_steps = max_steps_items[max_steps_selection.unwrap()];
-
-        max_steps
+        max_steps_items[max_steps_selection.unwrap()]
     }
 
     fn select_slippage() -> u32 {
@@ -100,9 +96,7 @@ impl SettingsScreen {
             .interact_on_opt(&Term::stderr())
             .unwrap();
 
-        let slippage = slippage_items[slippage_selection.unwrap()];
-
-        slippage
+        slippage_items[slippage_selection.unwrap()]
     }
 
     fn confirm_is_external_allowed() -> bool {

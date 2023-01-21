@@ -3,10 +3,9 @@ use std::{collections::HashMap, sync::Arc};
 
 use console::style;
 use ethers::{
-    abi::{AbiEncode, Address},
     prelude::{k256::ecdsa::SigningKey, SignerMiddleware},
     providers::{Http, Middleware, Provider},
-    signers::{LocalWallet, Signer, Wallet},
+    signers::Wallet,
     types::{BlockId, TransactionReceipt, H160, U256},
 };
 use serde::{Deserialize, Serialize};
@@ -17,28 +16,16 @@ use crate::{abis::ERC20, network::Network};
 pub mod token_storage;
 
 #[derive(Deserialize)]
-struct CoingeckoVersion {
-    major: u16,
-    minor: u16,
-    patch: u16,
-}
-
-#[derive(Deserialize)]
 struct CoingeckoResponse {
-    keywords: Vec<String>,
-    logoURI: String,
-    name: String,
-    timestamp: String,
     tokens: Vec<Token>,
-    version: CoingeckoVersion,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct Token {
     pub address: String,
-    pub chainId: Option<u32>,
+    pub chain_id: Option<u32>,
     pub decimals: u32,
-    pub logoURI: String,
     pub name: String,
     pub symbol: String,
 }
@@ -50,10 +37,7 @@ impl std::fmt::Display for Token {
             "{} {} ({})",
             self.name,
             self.symbol,
-            self.address
-                .parse::<H160>()
-                .unwrap_or(H160::zero())
-                .to_string()
+            self.address.parse::<H160>().unwrap_or(H160::zero())
         )
     }
 }
@@ -73,9 +57,8 @@ impl Token {
     pub fn unknown() -> Self {
         Self {
             address: H160::zero().to_string(),
-            chainId: Some(0),
+            chain_id: Some(0),
             decimals: 0,
-            logoURI: String::default(),
             name: "Unknown".to_owned(),
             symbol: String::default(),
         }
@@ -153,16 +136,15 @@ impl Token {
 
         let mut tokens_current_chain: Vec<Token> = local_tokens
             .into_iter()
-            .filter(|token| token.chainId == Some(cur_network.chain_id))
+            .filter(|token| token.chain_id == Some(cur_network.chain_id))
             .collect();
 
         tokens_current_chain.append(&mut coingecko_tokens);
 
         let native_token = Token {
             address: "0x0000000000000000000000000000000000000000".to_owned(),
-            chainId: Some(cur_network.chain_id),
+            chain_id: Some(cur_network.chain_id),
             decimals: 18,
-            logoURI: "".to_owned(),
             name: cur_network.currency_name,
             symbol: cur_network.currency_symbol,
         };
@@ -188,7 +170,7 @@ impl Token {
         .to_owned();
 
         let response = reqwest::get(&external_url).await?;
-        let mut coingecko = response.json::<CoingeckoResponse>().await?;
+        let coingecko = response.json::<CoingeckoResponse>().await?;
 
         Ok(coingecko.tokens)
     }
@@ -210,9 +192,7 @@ impl Token {
 
         let token_contract = ERC20::new(token_address, provider);
 
-        let token_balance = token_contract.balance_of(owner).call().await.unwrap();
-
-        token_balance
+        token_contract.balance_of(owner).call().await.unwrap()
     }
 
     #[tokio::main]
@@ -229,13 +209,11 @@ impl Token {
 
         let token_contract = ERC20::new(token_address, provider);
 
-        let allowance = token_contract
+        token_contract
             .allowance(owner, spender)
             .call()
             .await
-            .unwrap();
-
-        allowance
+            .unwrap()
     }
 
     #[tokio::main]
@@ -262,11 +240,9 @@ impl Token {
         let call = token_contract.approve(spender, value);
         let pending_tx = call.send().await.expect("Error when approve call");
 
-        let receipt = pending_tx
+        pending_tx
             .await
-            .expect("Error while getting confirmations on approve");
-
-        receipt
+            .expect("Error while getting confirmations on approve")
     }
 
     #[tokio::main]
@@ -278,8 +254,6 @@ impl Token {
 
         let blk = Some(BlockId::from(provider.get_block_number().await.unwrap()));
 
-        let balance = provider.get_balance(current_address, blk).await.unwrap();
-
-        balance
+        provider.get_balance(current_address, blk).await.unwrap()
     }
 }

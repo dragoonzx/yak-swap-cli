@@ -1,4 +1,4 @@
-use std::{borrow::BorrowMut, sync::Arc};
+use std::sync::Arc;
 
 use crate::{
     abis::{FormattedOfferWithGas, YakAdapter, YakRouter},
@@ -7,15 +7,11 @@ use crate::{
 };
 use adapters::Adapter;
 use ethers::{
-    abi::{short_signature, Address, FixedBytes},
-    contract::Contract,
-    prelude::abigen,
     providers::{Http, Middleware, Provider, ProviderError},
     types::{H160, U256},
 };
 use futures::future;
 use serde::Deserialize;
-use tokio::task::JoinError;
 
 pub mod adapters;
 
@@ -87,9 +83,7 @@ impl Query {
                         .map(|adapter| adapter.unwrap())
                         .collect();
 
-                    let adapters = completed_tasks;
-
-                    return adapters;
+                    completed_tasks
                 }
                 Err(_err) => {
                     panic!("Error when call router.adaptersCount");
@@ -173,7 +167,7 @@ impl Query {
                 provider.clone(),
             ));
 
-            let best_path = router_contract
+            router_contract
                 .find_best_path_with_gas(
                     amount,
                     token_in,
@@ -182,9 +176,7 @@ impl Query {
                     U256::from(gas_price),
                 )
                 .call()
-                .await;
-
-            best_path
+                .await
         } else {
             panic!("No Yak Router address");
         }
@@ -279,7 +271,8 @@ impl Query {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ExternalQuote {
-    pub toTokenAmount: String,
-    pub estimatedGas: u32,
+    pub to_token_amount: String,
+    pub estimated_gas: u32,
 }

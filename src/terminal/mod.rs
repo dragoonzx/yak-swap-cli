@@ -5,22 +5,14 @@ use std::{
 
 use console::Term;
 use crossterm::execute;
-use dialoguer::{theme::ColorfulTheme, Input, Password, Select};
-use ethers::{
-    prelude::k256::{elliptic_curve::ScalarCore, Secp256k1, SecretKey},
-    signers::{LocalWallet, Signer},
-    types::H160,
-};
-use futures::executor::block_on;
+use dialoguer::{theme::ColorfulTheme, Select};
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
-use settimeout::set_timeout;
-use spinners::{Spinner, Spinners};
 
 use crate::db::DB;
 use crate::network::Network;
-use wallet::AccountWallet;
 
+use crate::wallet::storage;
 use account::AccountScreen;
 use network::NetworkScreen;
 use query::QueryScreen;
@@ -29,16 +21,13 @@ use storage::WalletStorage;
 use swap::SwapScreen;
 use token::TokenScreen;
 
-mod account;
-mod network;
-mod query;
-mod settings;
-#[path = "../wallet/storage.rs"]
-mod storage;
+pub mod account;
+pub mod network;
+pub mod query;
+pub mod settings;
+
 mod swap;
 mod token;
-#[path = "../wallet/mod.rs"]
-mod wallet;
 
 pub struct Terminal {}
 
@@ -79,37 +68,32 @@ impl Terminal {
 
         println!();
         println!(
-            "{}",
-            format!(
-                "Account: {} \t Network: {} (chain id: {}) \t RPC URL: {}",
-                address, current_network.name, current_network.chain_id, current_network.rpc_url
-            )
+            "Account: {} \t Network: {} (chain id: {}) \t RPC URL: {}",
+            address, current_network.name, current_network.chain_id, current_network.rpc_url
         );
         println!();
         println!(
             "Yak Router Contract: {}",
-            current_network.yak_router.unwrap_or("None".to_owned())
+            current_network
+                .yak_router
+                .unwrap_or_else(|| "None".to_owned())
         );
         println!();
     }
 
-    pub fn render_on_launch() -> std::io::Result<()> {
+    pub fn render_on_launch() {
         Self::settings_bar();
         Self::render_topics();
-
-        Ok(())
     }
 
-    pub fn render() -> std::io::Result<()> {
+    pub fn render() {
         Self::action_required();
 
         Self::settings_bar();
         Self::render_topics();
-
-        Ok(())
     }
 
-    fn render_topics() -> std::io::Result<()> {
+    fn render_topics() {
         let start_screen_topics = [
             "1. Query",
             "2. Swap",
@@ -121,7 +105,8 @@ impl Terminal {
         let selection = Select::with_theme(&ColorfulTheme::default())
             .items(&start_screen_topics)
             .default(0)
-            .interact_on_opt(&Term::stderr())?;
+            .interact_on_opt(&Term::stderr())
+            .unwrap();
 
         match selection {
             Some(index) => match FromPrimitive::from_usize(index) {
@@ -147,8 +132,6 @@ impl Terminal {
             },
             None => println!("You did not select anything"),
         }
-
-        Ok(())
     }
 
     pub fn clear_terminal() {

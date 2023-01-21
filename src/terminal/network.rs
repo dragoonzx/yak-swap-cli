@@ -1,8 +1,6 @@
-use crate::wallet::AccountWallet;
 use crate::Terminal;
 use console::Term;
-use dialoguer::{theme::ColorfulTheme, Input, Password, Select};
-use ethers::prelude::k256::elliptic_curve::Error;
+use dialoguer::{theme::ColorfulTheme, Input, Select};
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 
@@ -21,7 +19,7 @@ enum NetworkTopics {
 }
 
 impl NetworkScreen {
-    pub fn render() -> std::io::Result<()> {
+    pub fn render() {
         let topics = [
             // "1. Add network",
             // "2. Remove network",
@@ -34,7 +32,8 @@ impl NetworkScreen {
         let selection = Select::with_theme(&ColorfulTheme::default())
             .items(&topics)
             .default(0)
-            .interact_on_opt(&Term::stderr())?;
+            .interact_on_opt(&Term::stderr())
+            .unwrap();
 
         match selection {
             Some(index) => match FromPrimitive::from_usize(index) {
@@ -65,17 +64,15 @@ impl NetworkScreen {
             },
             None => println!("You did not select anything"),
         }
-
-        Ok(())
     }
 
-    fn add_network() {
-        unimplemented!();
-    }
+    // fn add_network() {
+    //     unimplemented!();
+    // }
 
-    fn remove_network() {
-        unimplemented!();
-    }
+    // fn remove_network() {
+    //     unimplemented!();
+    // }
 
     fn set_network() {
         let items = Network::get_supported_networks();
