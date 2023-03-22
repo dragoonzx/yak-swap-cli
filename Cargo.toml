@@ -9,7 +9,7 @@ edition = "2021"
 crossterm = "0.25"
 dialoguer = { version = "0.10.2", features = ["fuzzy-select"] }
 console = "0.15.2"
-ethers = { version = "1.0.0", features = ["rustls"] }
+ethers = { version = "1.0.0", features = ["rustls", "legacy"] }
 num-derive = "0.3"
 num-traits = "0.2"
 eth-keystore= "0.5.0"
